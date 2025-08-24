@@ -1,4 +1,7 @@
 python-telegram-bot==22.1
 uvicorn==0.34.2
 starlette==0.46.2
+python-telegram-bot==20.3
+uvicorn
+starlette
 openai>=0.27.0
