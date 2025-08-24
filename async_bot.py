@@ -1,7 +1,8 @@
 import asyncio
+import logging
 import os
-import openai
 
+import openai
 import uvicorn
 from starlette.applications import Starlette
 from starlette.requests import Request
@@ -16,13 +17,13 @@ from telegram.ext import (
     MessageHandler,
 )
 
+# Логирование
 logging.basicConfig(
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s", level=logging.INFO
 )
-logging.getLogger("httpx").setLevel(logging.WARNING)
-
 logger = logging.getLogger(__name__)
 
+# Переменные окружения
 URL = os.environ.get("RENDER_EXTERNAL_URL")
 PORT = int(os.environ.get("PORT", 8000))
 TOKEN = os.environ.get("BOT_TOKEN")
@@ -30,7 +31,6 @@ OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY")
 
 if not TOKEN:
     raise ValueError("BOT_TOKEN environment variable is required")
-
 if not OPENAI_API_KEY:
     raise ValueError("OPENAI_API_KEY environment variable is required")
 
@@ -39,13 +39,10 @@ openai.api_key = OPENAI_API_KEY
 USE_WEBHOOK = URL is not None
 logger.info("Running in %s mode", "webhook" if USE_WEBHOOK else "polling")
 
-import logging
-
-logger = logging.getLogger(__name__)
 
 async def ask_chatgpt(user_message: str) -> str:
     try:
-        response = await openai.ChatCompletion.acreate(
+        response = await openai.chat.completions.acreate(
             model="gpt-3.5-turbo",
             messages=[
                 {"role": "system", "content": "Ты — добрый и поддерживающий психолог."},
@@ -58,7 +55,6 @@ async def ask_chatgpt(user_message: str) -> str:
     except Exception as e:
         logger.error("OpenAI API error", exc_info=True)
         return "Извини, произошла ошибка при подключении к ИИ."
-        
 
 
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -71,8 +67,6 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
 
     logger.info("Received message from %s: %s", user.username or user.id, message)
 
-    await update.message.chat.send_action(action="typing")
-
     reply = await ask_chatgpt(message)
     await update.message.reply_text(reply)
 
@@ -80,7 +74,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
 async def main() -> None:
     if USE_WEBHOOK:
         logger.info("Starting webhook mode with URL: %s", URL)
-        application = Application.builder().token(TOKEN).updater(None).build()
+        application = Application.builder().token(TOKEN).build()
         application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
 
         await application.bot.set_webhook(url=f"{URL}/telegram")
