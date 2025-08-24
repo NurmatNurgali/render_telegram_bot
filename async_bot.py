@@ -1,5 +1,4 @@
 import asyncio
-import logging
 import os
 import openai
 
@@ -40,6 +39,9 @@ openai.api_key = OPENAI_API_KEY
 USE_WEBHOOK = URL is not None
 logger.info("Running in %s mode", "webhook" if USE_WEBHOOK else "polling")
 
+import logging
+
+logger = logging.getLogger(__name__)
 
 async def ask_chatgpt(user_message: str) -> str:
     try:
@@ -54,7 +56,7 @@ async def ask_chatgpt(user_message: str) -> str:
         )
         return response.choices[0].message.content.strip()
     except Exception as e:
-        logger.error(f"OpenAI API error: {e}", exc_info=True)  # Показываем полную ошибку в логах
+        logger.error("OpenAI API error", exc_info=True)
         return "Извини, произошла ошибка при подключении к ИИ."
         
 
