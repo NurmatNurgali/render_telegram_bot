@@ -54,8 +54,9 @@ async def ask_chatgpt(user_message: str) -> str:
         )
         return response.choices[0].message.content.strip()
     except Exception as e:
-        logger.error(f"OpenAI API error: {e}")
+        logger.error(f"OpenAI API error: {e}", exc_info=True)  # Показываем полную ошибку в логах
         return "Извини, произошла ошибка при подключении к ИИ."
+        
 
 
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
