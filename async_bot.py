@@ -1,7 +1,7 @@
 import asyncio
 import logging
 import os
-import openai  # <-- импортируем openai
+import openai
 
 import uvicorn
 from starlette.applications import Starlette
@@ -17,7 +17,6 @@ from telegram.ext import (
     MessageHandler,
 )
 
-# Enable logging
 logging.basicConfig(
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s", level=logging.INFO
 )
@@ -25,11 +24,10 @@ logging.getLogger("httpx").setLevel(logging.WARNING)
 
 logger = logging.getLogger(__name__)
 
-# Конфигурация
 URL = os.environ.get("RENDER_EXTERNAL_URL")
 PORT = int(os.environ.get("PORT", 8000))
 TOKEN = os.environ.get("BOT_TOKEN")
-OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY")  # <-- ключ OpenAI
+OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY")
 
 if not TOKEN:
     raise ValueError("BOT_TOKEN environment variable is required")
@@ -45,14 +43,13 @@ logger.info("Running in %s mode", "webhook" if USE_WEBHOOK else "polling")
 
 async def ask_chatgpt(user_message: str) -> str:
     try:
-        response = openai.ChatCompletion.create(
+        response = await openai.ChatCompletion.acreate(
             model="gpt-3.5-turbo",
             messages=[
                 {"role": "system", "content": "Ты — добрый и поддерживающий психолог."},
                 {"role": "user", "content": user_message}
             ],
             max_tokens=150,
-            n=1,
             temperature=0.7,
         )
         return response.choices[0].message.content.strip()
@@ -71,7 +68,6 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
 
     logger.info("Received message from %s: %s", user.username or user.id, message)
 
-    # Отправляем "печатает..."
     await update.message.chat.send_action(action="typing")
 
     reply = await ask_chatgpt(message)
