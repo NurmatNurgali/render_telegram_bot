@@ -1,6 +1,7 @@
 import asyncio
 import logging
 import os
+import openai  # <-- импортируем openai
 
 import uvicorn
 from starlette.applications import Starlette
@@ -20,27 +21,47 @@ from telegram.ext import (
 logging.basicConfig(
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s", level=logging.INFO
 )
-# set higher logging level for httpx to avoid all GET and POST requests being logged
 logging.getLogger("httpx").setLevel(logging.WARNING)
 
 logger = logging.getLogger(__name__)
 
-# Define configuration constants
+# Конфигурация
 URL = os.environ.get("RENDER_EXTERNAL_URL")
 PORT = int(os.environ.get("PORT", 8000))
 TOKEN = os.environ.get("BOT_TOKEN")
+OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY")  # <-- ключ OpenAI
 
-# Validate required environment variables
 if not TOKEN:
     raise ValueError("BOT_TOKEN environment variable is required")
 
-# Determine mode: webhook if URL is provided, polling otherwise
+if not OPENAI_API_KEY:
+    raise ValueError("OPENAI_API_KEY environment variable is required")
+
+openai.api_key = OPENAI_API_KEY
+
 USE_WEBHOOK = URL is not None
 logger.info("Running in %s mode", "webhook" if USE_WEBHOOK else "polling")
 
 
-async def echo(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Echo the user message."""
+async def ask_chatgpt(user_message: str) -> str:
+    try:
+        response = openai.ChatCompletion.create(
+            model="gpt-3.5-turbo",
+            messages=[
+                {"role": "system", "content": "Ты — добрый и поддерживающий психолог."},
+                {"role": "user", "content": user_message}
+            ],
+            max_tokens=150,
+            n=1,
+            temperature=0.7,
+        )
+        return response.choices[0].message.content.strip()
+    except Exception as e:
+        logger.error(f"OpenAI API error: {e}")
+        return "Извини, произошла ошибка при подключении к ИИ."
+
+
+async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     user = update.effective_user
     message = update.message.text if update.message else None
 
@@ -49,21 +70,22 @@ async def echo(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         return
 
     logger.info("Received message from %s: %s", user.username or user.id, message)
-    await update.message.reply_text(message)
+
+    # Отправляем "печатает..."
+    await update.message.chat.send_action(action="typing")
+
+    reply = await ask_chatgpt(message)
+    await update.message.reply_text(reply)
 
 
 async def main() -> None:
-    """Set up PTB application and run in webhook or polling mode."""
     if USE_WEBHOOK:
-        # Webhook mode for production (Render)
         logger.info("Starting webhook mode with URL: %s", URL)
         application = Application.builder().token(TOKEN).updater(None).build()
-        application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, echo))
+        application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
 
-        # Set webhook
         await application.bot.set_webhook(url=f"{URL}/telegram")
 
-        # Setup web server
         async def telegram(request: Request) -> Response:
             data = await request.json()
             await application.update_queue.put(Update.de_json(data, application.bot))
@@ -87,17 +109,15 @@ async def main() -> None:
             await server.serve()
             await application.stop()
     else:
-        # Polling mode for local development
         logger.info("Starting polling mode for local development")
         application = Application.builder().token(TOKEN).build()
-        application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, echo))
+        application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
 
         async with application:
             await application.start()
             await application.updater.start_polling()
             logger.info("Bot started! Send a message to test it.")
 
-            # Keep running until interrupted
             try:
                 await asyncio.Event().wait()
             except asyncio.CancelledError:
