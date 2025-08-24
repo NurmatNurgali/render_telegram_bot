@@ -39,19 +39,20 @@ openai.api_key = OPENAI_API_KEY
 USE_WEBHOOK = URL is not None
 logger.info("Running in %s mode", "webhook" if USE_WEBHOOK else "polling")
 
+import openai
+
+client = openai.OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
 async def ask_chatgpt(user_message: str) -> str:
-    try:
-        response = await openai.chat.completions.acreate(
-            model="gpt-3.5-turbo",
-            messages=[
-                {"role": "system", "content": "Ты — добрый и поддерживающий психолог."},
-                {"role": "user", "content": user_message}
-            ],
-            max_tokens=150,
-            temperature=0.7,
-        )
-        return response.choices[0].message.content.strip()
+    response = await client.chat.completions.create(
+        model="gpt-3.5-turbo",
+        messages=[
+            {"role": "system", "content": "Ты — Добрый и поддерживающий психолог. Отвечай мягко, с сочувствием, без медицинских диагнозов."},
+            {"role": "user", "content": user_message},
+        ],
+        temperature=0.7,
+    )
+    return response.choices[0].message.content.strip()
     except Exception as e:
         logger.error("OpenAI API error", exc_info=True)
         return "Извини, произошла ошибка при подключении к ИИ."
