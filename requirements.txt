@@ -1,4 +1,4 @@
-python-telegram-bot==22.1
+python-telegram-bot==20.3
+openai>=1.0.0
 uvicorn
 starlette
-openai>=0.27.0
